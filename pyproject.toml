@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "versite"
+version = "0.1.0"
+description = "Versioned static-site deployments with builder isolation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML>=6.0",
+  "Jinja2>=3.1",
+]
+
+[project.scripts]
+versite = "versite.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["versite*"]
+
+[tool.setuptools.package-data]
+"versite.templates" = ["*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
