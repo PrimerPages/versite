@@ -26,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     deploy.add_argument("aliases", nargs="*")
     _add_common_options(deploy, include_builder=True)
     deploy.add_argument("--source")
+    deploy.add_argument("--site-dir")
     deploy.add_argument("--output-dir")
     deploy.add_argument("--build-command", nargs=argparse.REMAINDER)
     deploy.add_argument("-q", "--quiet", action="store_true")
@@ -117,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
                 push=push,
                 allow_empty=args.allow_empty,
                 quiet=args.quiet,
+                site_dir=args.site_dir,
             )
         if args.command == "list":
             return list_versions(config, args.identifier, as_json=args.json)

@@ -346,25 +346,39 @@ def deploy_version(
     push: bool = False,
     allow_empty: bool = False,
     quiet: bool = False,
+    site_dir: str | None = None,
 ) -> int:
-    from versite.builders.command import BuilderError, load_builder
-
     repo = git_root()
-    builder_name = config["builder"]
-    builder = load_builder(builder_name, config)
-    builder_config = config["builders"][builder_name]
-    output_dir = config.get("output_dir")
+    source_site_dir: Path
     temp_output: tempfile.TemporaryDirectory[str] | None = None
-    if output_dir is None:
-        temp_output = tempfile.TemporaryDirectory(prefix="versite-build-")
-        output_dir = temp_output.name
+
+    if site_dir is not None:
+        source_site_dir = Path(site_dir).resolve()
+        if not source_site_dir.exists():
+            raise VersiteError(f"site directory does not exist: {site_dir}")
+        if not source_site_dir.is_dir():
+            raise VersiteError(f"site directory is not a directory: {site_dir}")
+    else:
+        from versite.builders.command import BuilderError, load_builder
+
+        builder_name = config["builder"]
+        builder = load_builder(builder_name, config)
+        builder_config = config["builders"][builder_name]
+        output_dir = config.get("output_dir")
+        if output_dir is None:
+            temp_output = tempfile.TemporaryDirectory(prefix="versite-build-")
+            output_dir = temp_output.name
+        try:
+            builder.build(
+                version=version,
+                output_dir=output_dir,
+                config=builder_config,
+                quiet=quiet,
+            )
+        except BuilderError as exc:
+            raise VersiteError(str(exc)) from exc
+        source_site_dir = Path(output_dir)
     try:
-        builder.build(
-            version=version,
-            output_dir=output_dir,
-            config=builder_config,
-            quiet=quiet,
-        )
         with branch_worktree(
             repo,
             config["branch"],
@@ -374,7 +388,7 @@ def deploy_version(
             site_root = _site_root(worktree, config["deploy_prefix"])
             site_root.mkdir(parents=True, exist_ok=True)
             version_path = _identifier_path(worktree, config["deploy_prefix"], version)
-            _copy_contents(Path(output_dir), version_path)
+            _copy_contents(source_site_dir, version_path)
             store = _load_store(worktree, config["deploy_prefix"])
             title = version
             existing = store.find(version)
@@ -399,8 +413,6 @@ def deploy_version(
             if push and committed:
                 push_branch(worktree, config["remote"], config["branch"])
         return 0
-    except BuilderError as exc:
-        raise VersiteError(str(exc)) from exc
     finally:
         if temp_output is not None:
             temp_output.cleanup()
