@@ -121,6 +121,42 @@ Example:
 versite deploy 1.0 latest --builder custom
 ```
 
+## Prebuilt site deployment
+
+If another workflow already built the static site, you can deploy that output directly without selecting a builder:
+
+```bash
+versite deploy 1.0 latest --site-dir path/to/built/site
+```
+
+In this mode, `versite` does not invoke MkDocs, Jekyll, or any other builder. It just publishes the contents of `--site-dir` and updates version metadata, aliases, and redirects.
+
+If the site generator needs a versioned base path, build that into the site before handing it to `versite`. `versite` does not rewrite built HTML, CSS, or asset URLs after the fact.
+
+MkDocs example:
+
+```bash
+export VERSION=1.0
+export MIKE_DOCS_VERSION="$VERSION"
+mkdocs build --clean --site-dir dist/site
+versite deploy "$VERSION" latest --site-dir dist/site
+```
+
+This works when the MkDocs project or plugins derive version-aware URLs from `VERSITE_VERSION` or `MIKE_DOCS_VERSION` during the build.
+
+Jekyll example:
+
+```bash
+export VERSION=1.0
+bundle exec jekyll build \
+  --source . \
+  --destination dist/site \
+  --baseurl "/$VERSION"
+versite deploy "$VERSION" latest --site-dir dist/site
+```
+
+For Jekyll, this is the important part: if the built site will live under `/<version>/`, the Jekyll build usually needs `--baseurl "/<version>"` or an equivalent config override so asset and page links resolve correctly after deployment.
+
 ## Command reference
 
 ```bash
@@ -148,6 +184,7 @@ Important options:
 - `-T, --template FILE`
 - `--ignore-remote-status`
 - `--source DIR`
+- `--site-dir DIR`
 - `--output-dir DIR`
 - `--build-command ...`
 - `-q, --quiet`

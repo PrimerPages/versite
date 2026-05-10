@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import subprocess
 import sys
@@ -90,3 +91,28 @@ def test_deploy_jekyll_command_template(git_repo: Path, tmp_path: Path) -> None:
     assert main(["deploy", "4.0", "--builder", "jekyll", "--config-file", str(config)]) == 0
     assert marker.read_text(encoding="utf-8") == "4.0"
     assert _show_file(git_repo, "gh-pages", "4.0/index.html") == "jekyll"
+
+
+def test_deploy_site_dir_without_loading_builder(
+    git_repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text("prebuilt", encoding="utf-8")
+    assets = site_dir / "assets"
+    assets.mkdir()
+    (assets / "app.css").write_text("body{}", encoding="utf-8")
+
+    sys.modules.pop("versite.builders.command", None)
+    original_import = builtins.__import__
+
+    def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "versite.builders.command":
+            raise AssertionError("builder module should not be imported for --site-dir deploys")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    assert main(["deploy", "5.0", "latest", "--site-dir", str(site_dir), "-b", "gh-pages"]) == 0
+    assert _show_file(git_repo, "gh-pages", "5.0/index.html") == "prebuilt"
+    assert _show_file(git_repo, "gh-pages", "5.0/assets/app.css") == "body{}"
