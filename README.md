@@ -1,25 +1,17 @@
 # versite
 
-`versite` is a generic versioned static-site deployment tool inspired by `mike`, but it is not coupled to MkDocs. It manages a deployment branch containing multiple published site versions, aliases, redirects, and per-version metadata. Only `versite deploy` is allowed to invoke a site builder.
+`versite` is a versioned static-site deployment tool for prebuilt static site directories. It manages a deployment branch containing multiple published site versions, aliases, redirects, and per-version metadata.
 
 ## Why it exists
 
-`mike` is tightly centered on MkDocs. `versite` separates the problem into two layers:
+`versite` focuses on deployment branch management only. It copies a prebuilt static site into a versioned path, updates `versions.json`, manages aliases and redirects, and commits the result to the deployment branch.
 
-1. A versioned static-site manager that edits `versions.json`, alias paths, redirects, and the target git branch.
-2. A command-based builder runner that invokes builders as external subprocesses only during `deploy`.
+It does not:
 
-That separation means non-build commands stay fast and reliable:
-
-- `versite list`
-- `versite delete`
-- `versite alias`
-- `versite retitle`
-- `versite props`
-- `versite set-default`
-- `versite serve`
-
-Those commands do not import MkDocs, load MkDocs config, run MkDocs plugin hooks, invoke Jekyll, or shell out to any builder.
+- build MkDocs sites
+- build Jekyll sites
+- run custom build commands
+- rewrite generated asset URLs after a site is built
 
 ## Installation
 
@@ -33,134 +25,52 @@ versite --help
 `versite` reads `versite.yml` if present. The config loader only uses lightweight YAML parsing.
 
 ```yaml
-builder: mkdocs
 remote: origin
 branch: gh-pages
 deploy_prefix: ""
 alias_type: redirect
 redirect_template: null
 push: false
-
-builders:
-  mkdocs:
-    command:
-      - mkdocs
-      - build
-      - --clean
-      - --config-file
-      - "{config_file}"
-      - --site-dir
-      - "{output_dir}"
-    config_file: mkdocs.yml
-
-  jekyll:
-    command:
-      - bundle
-      - exec
-      - jekyll
-      - build
-      - --source
-      - "{source}"
-      - --destination
-      - "{output_dir}"
-    source: .
 ```
 
 CLI flags override config values.
 
-## MkDocs usage
+## Prebuilt Site Deployment
 
-MkDocs support is implemented only as a command template. `versite` never imports `mkdocs`.
-
-```bash
-versite deploy 1.0 latest --builder mkdocs
-versite list
-versite set-default latest
-versite delete 0.9
-```
-
-During `deploy`, the MkDocs builder receives:
-
-- `VERSITE_VERSION=<version>`
-- `MIKE_DOCS_VERSION=<version>`
-
-## Jekyll usage
-
-Jekyll support is also command-template based.
+Deploy expects a prebuilt static site directory:
 
 ```bash
-versite deploy 1.0 latest --builder jekyll
-versite list
-versite alias 1.0 stable
-versite set-default latest
+versite deploy 1.0 latest --site-dir path/to/site
 ```
 
-`versite` does not import Jekyll-related Python libraries. It only runs the configured command during `deploy`.
+`versite` publishes the contents of `--site-dir` into the deployment branch under the version path, updates `versions.json`, manages aliases, and writes redirects when needed.
 
-## Custom builders
+If the generated site needs a versioned base path, that must be handled during the build step before `versite` sees the output. `versite` does not rewrite generated HTML, CSS, JavaScript, or asset URLs after the fact.
 
-Custom builders can be added through `versite.yml` without changing Python code:
+## Migration Examples
 
-```yaml
-builder: custom
-
-builders:
-  custom:
-    command:
-      - npm
-      - run
-      - build
-      - --
-      - --outDir
-      - "{output_dir}"
-```
-
-Example:
+MkDocs:
 
 ```bash
-versite deploy 1.0 latest --builder custom
-```
-
-## Prebuilt site deployment
-
-If another workflow already built the static site, you can deploy that output directly without selecting a builder:
-
-```bash
-versite deploy 1.0 latest --site-dir path/to/built/site
-```
-
-In this mode, `versite` does not invoke MkDocs, Jekyll, or any other builder. It just publishes the contents of `--site-dir` and updates version metadata, aliases, and redirects.
-
-If the site generator needs a versioned base path, build that into the site before handing it to `versite`. `versite` does not rewrite built HTML, CSS, or asset URLs after the fact.
-
-MkDocs example:
-
-```bash
-export VERSION=1.0
-export MIKE_DOCS_VERSION="$VERSION"
-mkdocs build --clean --site-dir dist/site
+VERSION=1.0
+VERSITE_VERSION="$VERSION" MIKE_DOCS_VERSION="$VERSION" mkdocs build --clean --site-dir dist/site
 versite deploy "$VERSION" latest --site-dir dist/site
 ```
 
-This works when the MkDocs project or plugins derive version-aware URLs from `VERSITE_VERSION` or `MIKE_DOCS_VERSION` during the build.
-
-Jekyll example:
+Jekyll:
 
 ```bash
-export VERSION=1.0
-bundle exec jekyll build \
-  --source . \
-  --destination dist/site \
-  --baseurl "/$VERSION"
+VERSION=1.0
+bundle exec jekyll build --destination dist/site --baseurl "/$VERSION"
 versite deploy "$VERSION" latest --site-dir dist/site
 ```
 
-For Jekyll, this is the important part: if the built site will live under `/<version>/`, the Jekyll build usually needs `--baseurl "/<version>"` or an equivalent config override so asset and page links resolve correctly after deployment.
+For Jekyll and other generators that emit root-based asset or page URLs, build with the correct base path for the versioned deployment location.
 
-## Command reference
+## Command Reference
 
 ```bash
-versite deploy VERSION [ALIAS...]
+versite deploy VERSION [ALIAS...] --site-dir path/to/site
 versite list [IDENTIFIER]
 versite delete [IDENTIFIER...] [--all]
 versite alias IDENTIFIER [ALIAS...]
@@ -173,7 +83,6 @@ versite serve
 Important options:
 
 - `--config-file FILE`
-- `--builder NAME`
 - `-r, --remote REMOTE`
 - `-b, --branch BRANCH`
 - `-m, --message MESSAGE`
@@ -183,14 +92,10 @@ Important options:
 - `--alias-type {redirect,copy,symlink}`
 - `-T, --template FILE`
 - `--ignore-remote-status`
-- `--source DIR`
 - `--site-dir DIR`
-- `--output-dir DIR`
-- `--build-command ...`
-- `-q, --quiet`
 - `--json`
 
-## Alias modes
+## Alias Modes
 
 - `redirect`: writes static HTML redirects. This is the default and works well on GitHub Pages.
 - `copy`: copies the deployed version directory into each alias directory.
@@ -200,51 +105,17 @@ Important options:
 
 `versite` is designed for branch-based static hosting. A common setup is `gh-pages` with redirect aliases and a root `index.html` redirect created by `set-default`.
 
-Example MkDocs config:
+Example:
 
 ```yaml
-builder: mkdocs
 branch: gh-pages
 alias_type: redirect
-
-builders:
-  mkdocs:
-    command:
-      - mkdocs
-      - build
-      - --clean
-      - --config-file
-      - "{config_file}"
-      - --site-dir
-      - "{output_dir}"
-    config_file: mkdocs.yml
+push: false
 ```
 
-Example Jekyll config:
+## Migration From mike
 
-```yaml
-builder: jekyll
-branch: gh-pages
-alias_type: redirect
-
-builders:
-  jekyll:
-    command:
-      - bundle
-      - exec
-      - jekyll
-      - build
-      - --source
-      - "{source}"
-      - --destination
-      - "{output_dir}"
-    source: .
-```
-
-## Migration from mike
-
-- `mike deploy` roughly maps to `versite deploy --builder mkdocs`.
+- `mike deploy` roughly maps to building the site first and then running `versite deploy --site-dir ...`.
 - `mike list`, `delete`, `alias`, `retitle`, `props`, and `set-default` roughly map to the same `versite` subcommands.
-- Unlike `mike`, non-build commands do not load MkDocs config.
+- Unlike `mike`, `versite` does not run MkDocs builds.
 - Shared deployment settings should move into `versite.yml`.
-- `VERSITE_VERSION` is the generic build env var. MkDocs builders also receive `MIKE_DOCS_VERSION` for compatibility.

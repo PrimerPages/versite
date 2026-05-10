@@ -8,40 +8,12 @@ import yaml
 
 
 DEFAULT_CONFIG: dict[str, Any] = {
-    "builder": "mkdocs",
     "remote": "origin",
     "branch": "gh-pages",
     "deploy_prefix": "",
     "alias_type": "redirect",
     "redirect_template": None,
     "push": False,
-    "builders": {
-        "mkdocs": {
-            "command": [
-                "mkdocs",
-                "build",
-                "--clean",
-                "--config-file",
-                "{config_file}",
-                "--site-dir",
-                "{output_dir}",
-            ],
-            "config_file": "mkdocs.yml",
-        },
-        "jekyll": {
-            "command": [
-                "bundle",
-                "exec",
-                "jekyll",
-                "build",
-                "--source",
-                "{source}",
-                "--destination",
-                "{output_dir}",
-            ],
-            "source": ".",
-        },
-    },
 }
 
 
@@ -92,7 +64,6 @@ def normalize_prefix(prefix: str) -> str:
 def apply_cli_overrides(
     config: dict[str, Any],
     *,
-    builder: str | None = None,
     remote: str | None = None,
     branch: str | None = None,
     message: str | None = None,
@@ -101,13 +72,8 @@ def apply_cli_overrides(
     alias_type: str | None = None,
     redirect_template: str | None = None,
     ignore_remote_status: bool | None = None,
-    source: str | None = None,
-    output_dir: str | None = None,
-    build_command: list[str] | None = None,
 ) -> dict[str, Any]:
     merged = deepcopy(config)
-    if builder is not None:
-        merged["builder"] = builder
     if remote is not None:
         merged["remote"] = remote
     if branch is not None:
@@ -126,14 +92,4 @@ def apply_cli_overrides(
         merged["redirect_template"] = redirect_template
     if ignore_remote_status is not None:
         merged["ignore_remote_status"] = ignore_remote_status
-    if source is not None:
-        builder_name = merged["builder"]
-        merged.setdefault("builders", {}).setdefault(builder_name, {})
-        merged["builders"][builder_name]["source"] = source
-    if output_dir is not None:
-        merged["output_dir"] = output_dir
-    if build_command is not None:
-        builder_name = merged["builder"]
-        merged.setdefault("builders", {}).setdefault(builder_name, {})
-        merged["builders"][builder_name]["command"] = build_command
     return merged
