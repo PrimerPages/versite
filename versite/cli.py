@@ -24,12 +24,8 @@ def build_parser() -> argparse.ArgumentParser:
     deploy = subparsers.add_parser("deploy")
     deploy.add_argument("version")
     deploy.add_argument("aliases", nargs="*")
-    _add_common_options(deploy, include_builder=True)
-    deploy.add_argument("--source")
+    _add_common_options(deploy)
     deploy.add_argument("--site-dir")
-    deploy.add_argument("--output-dir")
-    deploy.add_argument("--build-command", nargs=argparse.REMAINDER)
-    deploy.add_argument("-q", "--quiet", action="store_true")
 
     list_parser = subparsers.add_parser("list")
     list_parser.add_argument("identifier", nargs="?")
@@ -70,10 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _add_common_options(parser: argparse.ArgumentParser, include_builder: bool = False) -> None:
+def _add_common_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config-file")
-    if include_builder:
-        parser.add_argument("--builder")
     parser.add_argument("-r", "--remote")
     parser.add_argument("-b", "--branch")
     parser.add_argument("-m", "--message")
@@ -88,7 +82,6 @@ def _load_runtime_config(args: argparse.Namespace) -> dict:
     config, _ = load_config(args.config_file)
     return apply_cli_overrides(
         config,
-        builder=getattr(args, "builder", None),
         remote=args.remote,
         branch=args.branch,
         message=args.message,
@@ -97,9 +90,6 @@ def _load_runtime_config(args: argparse.Namespace) -> dict:
         alias_type=getattr(args, "alias_type", None),
         redirect_template=args.redirect_template,
         ignore_remote_status=args.ignore_remote_status,
-        source=getattr(args, "source", None),
-        output_dir=getattr(args, "output_dir", None),
-        build_command=getattr(args, "build_command", None),
     )
 
 
@@ -117,7 +107,6 @@ def main(argv: list[str] | None = None) -> int:
                 message=args.message,
                 push=push,
                 allow_empty=args.allow_empty,
-                quiet=args.quiet,
                 site_dir=args.site_dir,
             )
         if args.command == "list":

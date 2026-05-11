@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -345,74 +344,50 @@ def deploy_version(
     message: str | None = None,
     push: bool = False,
     allow_empty: bool = False,
-    quiet: bool = False,
     site_dir: str | None = None,
 ) -> int:
     repo = git_root()
-    source_site_dir: Path
-    temp_output: tempfile.TemporaryDirectory[str] | None = None
+    if site_dir is None:
+        raise VersiteError(
+            "deploy requires --site-dir; versite deploys prebuilt static directories only"
+        )
+    source_site_dir = Path(site_dir).resolve()
+    if not source_site_dir.exists():
+        raise VersiteError(f"site directory does not exist: {site_dir}")
+    if not source_site_dir.is_dir():
+        raise VersiteError(f"site directory is not a directory: {site_dir}")
 
-    if site_dir is not None:
-        source_site_dir = Path(site_dir).resolve()
-        if not source_site_dir.exists():
-            raise VersiteError(f"site directory does not exist: {site_dir}")
-        if not source_site_dir.is_dir():
-            raise VersiteError(f"site directory is not a directory: {site_dir}")
-    else:
-        from versite.builders.command import BuilderError, load_builder
-
-        builder_name = config["builder"]
-        builder = load_builder(builder_name, config)
-        builder_config = config["builders"][builder_name]
-        output_dir = config.get("output_dir")
-        if output_dir is None:
-            temp_output = tempfile.TemporaryDirectory(prefix="versite-build-")
-            output_dir = temp_output.name
-        try:
-            builder.build(
-                version=version,
-                output_dir=output_dir,
-                config=builder_config,
-                quiet=quiet,
-            )
-        except BuilderError as exc:
-            raise VersiteError(str(exc)) from exc
-        source_site_dir = Path(output_dir)
-    try:
-        with branch_worktree(
-            repo,
-            config["branch"],
-            remote=config["remote"],
-            ignore_remote_status=config.get("ignore_remote_status", False),
-        ) as worktree:
-            site_root = _site_root(worktree, config["deploy_prefix"])
-            site_root.mkdir(parents=True, exist_ok=True)
-            version_path = _identifier_path(worktree, config["deploy_prefix"], version)
-            _copy_contents(source_site_dir, version_path)
-            store = _load_store(worktree, config["deploy_prefix"])
-            title = version
-            existing = store.find(version)
-            if existing is not None:
-                title = existing.title
-            store.upsert(version, title=title, aliases=aliases)
-            for alias in aliases:
-                _write_alias(
-                    worktree,
-                    config["deploy_prefix"],
-                    alias,
-                    version,
-                    config["alias_type"],
-                    config.get("redirect_template"),
-                )
-            _save_store(worktree, config["deploy_prefix"], store)
-            committed = commit_all(
+    with branch_worktree(
+        repo,
+        config["branch"],
+        remote=config["remote"],
+        ignore_remote_status=config.get("ignore_remote_status", False),
+    ) as worktree:
+        site_root = _site_root(worktree, config["deploy_prefix"])
+        site_root.mkdir(parents=True, exist_ok=True)
+        version_path = _identifier_path(worktree, config["deploy_prefix"], version)
+        _copy_contents(source_site_dir, version_path)
+        store = _load_store(worktree, config["deploy_prefix"])
+        title = version
+        existing = store.find(version)
+        if existing is not None:
+            title = existing.title
+        store.upsert(version, title=title, aliases=aliases)
+        for alias in aliases:
+            _write_alias(
                 worktree,
-                message or f"Deploy {version}",
-                allow_empty=allow_empty,
+                config["deploy_prefix"],
+                alias,
+                version,
+                config["alias_type"],
+                config.get("redirect_template"),
             )
-            if push and committed:
-                push_branch(worktree, config["remote"], config["branch"])
-        return 0
-    finally:
-        if temp_output is not None:
-            temp_output.cleanup()
+        _save_store(worktree, config["deploy_prefix"], store)
+        committed = commit_all(
+            worktree,
+            message or f"Deploy {version}",
+            allow_empty=allow_empty,
+        )
+        if push and committed:
+            push_branch(worktree, config["remote"], config["branch"])
+    return 0

@@ -9,28 +9,25 @@ def test_load_defaults_without_file(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     config, path = load_config()
     assert path is None
-    assert config["builder"] == DEFAULT_CONFIG["builder"]
+    assert config["remote"] == DEFAULT_CONFIG["remote"]
 
 
 def test_load_config_file(tmp_path: Path) -> None:
     config_file = tmp_path / "versite.yml"
-    config_file.write_text("branch: docs\nbuilders:\n  mkdocs:\n    config_file: docs.yml\n", encoding="utf-8")
+    config_file.write_text("branch: docs\npush: true\n", encoding="utf-8")
     config, path = load_config(config_file)
     assert path == config_file
     assert config["branch"] == "docs"
-    assert config["builders"]["mkdocs"]["config_file"] == "docs.yml"
+    assert config["push"] is True
 
 
-def test_cli_overrides_builder_values() -> None:
+def test_cli_overrides_deploy_values() -> None:
     config = apply_cli_overrides(
         DEFAULT_CONFIG,
-        builder="jekyll",
         branch="pages",
         deploy_prefix="docs",
-        source="site",
-        build_command=["bundle", "exec", "jekyll", "build"],
+        remote="upstream",
     )
-    assert config["builder"] == "jekyll"
     assert config["branch"] == "pages"
     assert config["deploy_prefix"] == "docs"
-    assert config["builders"]["jekyll"]["source"] == "site"
+    assert config["remote"] == "upstream"
