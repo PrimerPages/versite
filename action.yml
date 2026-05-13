@@ -1,0 +1,121 @@
+name: versite
+description: Deploy a prebuilt static site directory with versite.
+inputs:
+  version:
+    description: Version identifier to deploy.
+    required: true
+  aliases:
+    description: Space-separated aliases to update alongside the version.
+    required: false
+    default: ""
+  site-dir:
+    description: Path to the prebuilt static site directory.
+    required: true
+  config-file:
+    description: Optional versite configuration file.
+    required: false
+    default: ""
+  remote:
+    description: Optional git remote name.
+    required: false
+    default: ""
+  branch:
+    description: Optional deployment branch.
+    required: false
+    default: ""
+  message:
+    description: Optional commit message.
+    required: false
+    default: ""
+  push:
+    description: Push the deployment branch after committing.
+    required: false
+    default: "false"
+  allow-empty:
+    description: Allow empty commits when nothing changed.
+    required: false
+    default: "false"
+  deploy-prefix:
+    description: Optional path prefix inside the deployment branch.
+    required: false
+    default: ""
+  alias-type:
+    description: Alias mode to use when creating aliases.
+    required: false
+    default: ""
+  redirect-template:
+    description: Optional redirect template file.
+    required: false
+    default: ""
+  ignore-remote-status:
+    description: Skip remote branch status checks before deploying.
+    required: false
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - name: Install versite
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        python -m pip install "${{ github.action_path }}"
+    - name: Deploy site
+      shell: bash
+      env:
+        VERSITE_VERSION: ${{ inputs.version }}
+        VERSITE_ALIASES: ${{ inputs.aliases }}
+        VERSITE_SITE_DIR: ${{ inputs.site-dir }}
+        VERSITE_CONFIG_FILE: ${{ inputs.config-file }}
+        VERSITE_REMOTE: ${{ inputs.remote }}
+        VERSITE_BRANCH: ${{ inputs.branch }}
+        VERSITE_MESSAGE: ${{ inputs.message }}
+        VERSITE_PUSH: ${{ inputs.push }}
+        VERSITE_ALLOW_EMPTY: ${{ inputs.allow-empty }}
+        VERSITE_DEPLOY_PREFIX: ${{ inputs.deploy-prefix }}
+        VERSITE_ALIAS_TYPE: ${{ inputs.alias-type }}
+        VERSITE_REDIRECT_TEMPLATE: ${{ inputs.redirect-template }}
+        VERSITE_IGNORE_REMOTE_STATUS: ${{ inputs.ignore-remote-status }}
+      run: |
+        set -euo pipefail
+        args=(deploy "$VERSITE_VERSION")
+        if [[ -n "$VERSITE_ALIASES" ]]; then
+          read -r -a alias_args <<<"$VERSITE_ALIASES"
+          args+=("${alias_args[@]}")
+        fi
+        args+=(--site-dir "$VERSITE_SITE_DIR")
+        if [[ -n "$VERSITE_CONFIG_FILE" ]]; then
+          args+=(--config-file "$VERSITE_CONFIG_FILE")
+        fi
+        if [[ -n "$VERSITE_REMOTE" ]]; then
+          args+=(--remote "$VERSITE_REMOTE")
+        fi
+        if [[ -n "$VERSITE_BRANCH" ]]; then
+          args+=(--branch "$VERSITE_BRANCH")
+        fi
+        if [[ -n "$VERSITE_MESSAGE" ]]; then
+          args+=(--message "$VERSITE_MESSAGE")
+        fi
+        if [[ "$VERSITE_PUSH" == "true" ]]; then
+          args+=(--push)
+        fi
+        if [[ "$VERSITE_ALLOW_EMPTY" == "true" ]]; then
+          args+=(--allow-empty)
+        fi
+        if [[ -n "$VERSITE_DEPLOY_PREFIX" ]]; then
+          args+=(--deploy-prefix "$VERSITE_DEPLOY_PREFIX")
+        fi
+        if [[ -n "$VERSITE_ALIAS_TYPE" ]]; then
+          args+=(--alias-type "$VERSITE_ALIAS_TYPE")
+        fi
+        if [[ -n "$VERSITE_REDIRECT_TEMPLATE" ]]; then
+          args+=(-T "$VERSITE_REDIRECT_TEMPLATE")
+        fi
+        if [[ "$VERSITE_IGNORE_REMOTE_STATUS" == "true" ]]; then
+          args+=(--ignore-remote-status)
+        fi
+        versite "${args[@]}"

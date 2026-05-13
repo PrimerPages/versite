@@ -113,6 +113,25 @@ alias_type: redirect
 push: false
 ```
 
+## GitHub Action
+
+The repository includes a reusable composite action at [`action.yml`](/home/athackst/Code/primerpages/versite/action.yml).
+
+Example usage:
+
+```yaml
+- uses: owner/repo@main
+  with:
+    version: 1.0
+    aliases: latest
+    site-dir: dist/site
+    branch: gh-pages
+    push: true
+```
+
+The action installs `versite` from the checked-out repository, then runs `versite deploy` with the inputs you provide. It is meant for prebuilt site output, so your workflow should build the site before invoking it.
+Internally it uses `github.action_path`, so consumers do not need to check out the action repository manually.
+
 ## Migration From mike
 
 - `mike deploy` roughly maps to building the site first and then running `versite deploy --site-dir ...`.
