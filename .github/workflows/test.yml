@@ -49,15 +49,10 @@ jobs:
           printf '2.0\n' > _site/index.html
           printf 'guide\n' > _site/guide/index.html
 
-      - name: Configure git author
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Exercise versite action
         uses: ./
         with:
-          version: 2.0
+          version: "2.0"
           aliases: latest
           site-dir: _site
           branch: gh-pages
