@@ -8,6 +8,7 @@ from pathlib import Path
 def serve_directory(directory: str | Path, host: str = "127.0.0.1", port: int = 8000) -> None:
     handler = partial(SimpleHTTPRequestHandler, directory=str(directory))
     server = ThreadingHTTPServer((host, port), handler)
+    print(f"Serving site at http://{host}:{port}/ from {directory}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
