@@ -34,3 +34,33 @@ jobs:
 
       - name: Run tests
         run: pytest -q
+
+  action-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Seed test site
+        run: |
+          mkdir -p _site/guide
+          printf '2.0\n' > _site/index.html
+          printf 'guide\n' > _site/guide/index.html
+
+      - name: Exercise versite action
+        uses: ./
+        with:
+          version: "2.0"
+          aliases: latest
+          site-dir: _site
+          branch: gh-pages
+          push: false
+          ignore-remote-status: true
+
+      - name: Verify deployment branch contents
+        run: |
+          git show gh-pages:2.0/index.html | grep '^2.0$'
+          git show gh-pages:2.0/guide/index.html | grep '^guide$'
+          git show gh-pages:latest/index.html | grep 'http-equiv="refresh"'

@@ -113,6 +113,73 @@ alias_type: redirect
 push: false
 ```
 
+## GitHub Action
+
+The repository includes a reusable composite action at [`action.yml`](/home/athackst/Code/primerpages/versite/action.yml).
+
+Example usage:
+
+```yaml
+- uses: owner/repo@main
+  with:
+    version: 1.0
+    aliases: latest
+    site-dir: dist/site
+    branch: gh-pages
+    push: true
+```
+
+The action installs `versite` from the checked-out repository, then runs `versite deploy` with the inputs you provide. It is meant for prebuilt site output, so your workflow should build the site before invoking it.
+Internally it uses `github.action_path`, so consumers do not need to check out the action repository manually. The action also configures a default git author for the deployment commit when running in GitHub Actions.
+
+Example Jekyll workflow:
+
+```yaml
+name: Site
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version identifier to publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Build site
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          bundle exec jekyll build \
+            --destination _site \
+            --baseurl "/$VERSION"
+
+      - uses: owner/repo@main
+        with:
+          version: ${{ inputs.version }}
+          aliases: latest
+          site-dir: _site
+          branch: gh-pages
+          push: true
+```
+
+This repository also includes a reusable workflow at [`.github/workflows/site.yml`](/home/athackst/Code/primerpages/versite/.github/workflows/site.yml) that builds with Jekyll and deploys with `versite`. It computes the Jekyll `baseurl` from the version and optional deploy prefix before calling `versite deploy`.
+
 ## Migration From mike
 
 - `mike deploy` roughly maps to building the site first and then running `versite deploy --site-dir ...`.
