@@ -9,6 +9,7 @@ from versite.commands import (
     delete_versions,
     deploy_version,
     list_versions,
+    props_version,
     retitle_version,
     serve_site,
     set_default,
@@ -46,6 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
     retitle.add_argument("identifier")
     retitle.add_argument("title")
     _add_common_options(retitle)
+
+    props = subparsers.add_parser("props")
+    props.add_argument("identifier")
+    props.add_argument("prop", nargs="?")
+    _add_common_options(props)
+    props.add_argument("--json", action="store_true")
 
     default = subparsers.add_parser("set-default")
     default.add_argument("identifier")
@@ -131,6 +138,16 @@ def main(argv: list[str] | None = None) -> int:
                 message=args.message,
                 push=push,
                 allow_empty=args.allow_empty,
+            )
+        if args.command == "props":
+            return props_version(
+                config,
+                args.identifier,
+                args.prop,
+                message=args.message,
+                push=push,
+                allow_empty=args.allow_empty,
+                as_json=args.json,
             )
         if args.command == "set-default":
             return set_default(
