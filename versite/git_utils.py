@@ -113,7 +113,8 @@ def branch_worktree(
 ) -> Iterator[Path]:
     repo_path = Path(repo)
     ensure_branch_ready(repo_path, branch, remote, ignore_remote_status)
-    tempdir = Path(tempfile.mkdtemp(prefix=f"versite-{branch}-"))
+    safe_branch = branch.replace("/", "-")
+    tempdir = Path(tempfile.mkdtemp(prefix=f"versite-{safe_branch}-"))
     has_branch = ref_exists(repo_path, f"refs/heads/{branch}")
     try:
         if has_branch:
