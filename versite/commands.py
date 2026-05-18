@@ -82,6 +82,22 @@ def _stage_source_site(source: Path) -> Path:
     return staged_site
 
 
+def _ensure_root_redirect(
+    worktree: Path,
+    deploy_prefix: str,
+    identifier: str,
+    redirect_template: str | None,
+) -> None:
+    root_index = worktree / "index.html"
+    if root_index.exists() or root_index.is_symlink():
+        return
+    write_redirect(
+        root_index,
+        _root_redirect_href(identifier, deploy_prefix),
+        redirect_template,
+    )
+
+
 def _write_alias(
     worktree: Path,
     deploy_prefix: str,
@@ -392,6 +408,13 @@ def deploy_version(
                     config["alias_type"],
                     config.get("redirect_template"),
                 )
+            default_identifier = aliases[0] if aliases else version
+            _ensure_root_redirect(
+                worktree,
+                config["deploy_prefix"],
+                default_identifier,
+                config.get("redirect_template"),
+            )
             _save_store(worktree, config["deploy_prefix"], store)
             committed = commit_all(
                 worktree,
