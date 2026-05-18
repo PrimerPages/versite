@@ -97,6 +97,10 @@ runs:
           read -r -a alias_args <<<"$VERSITE_ALIASES"
           args+=("${alias_args[@]}")
         fi
+        if [[ -z "$VERSITE_SITE_DIR" ]]; then
+          echo "versite action requires the 'site-dir' input" >&2
+          exit 1
+        fi
         args+=(--site-dir "$VERSITE_SITE_DIR")
         if [[ -n "$VERSITE_CONFIG_FILE" ]]; then
           args+=(--config-file "$VERSITE_CONFIG_FILE")

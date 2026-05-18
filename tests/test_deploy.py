@@ -67,3 +67,13 @@ def test_deploy_stages_site_dir_before_branch_setup(git_repo: Path, tmp_path: Pa
 
     assert main(["deploy", "4.0", "--site-dir", str(site_dir), "-b", "gh-pages"]) == 0
     assert _show_file(git_repo, "gh-pages", "4.0/index.html") == "4.0"
+
+
+def test_deploy_supports_branch_names_with_slashes(git_repo: Path, tmp_path: Path) -> None:
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text("5.0", encoding="utf-8")
+
+    branch = "ci-test/deploy-site"
+    assert main(["deploy", "5.0", "--site-dir", str(site_dir), "-b", branch]) == 0
+    assert _show_file(git_repo, branch, "5.0/index.html") == "5.0"
