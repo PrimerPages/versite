@@ -64,3 +64,13 @@ jobs:
           git show gh-pages:2.0/index.html | grep '^2.0$'
           git show gh-pages:2.0/guide/index.html | grep '^guide$'
           git show gh-pages:latest/index.html | grep 'http-equiv="refresh"'
+
+  success:
+    needs:
+      - test
+      - action-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Success"
+        shell: bash
+        run: echo "All checks completed successfully"

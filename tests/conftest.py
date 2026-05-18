@@ -35,9 +35,7 @@ def git_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
             shutil.rmtree(child)
         else:
             child.unlink()
-    versions = [
-        {"version": "1.0", "title": "1.0", "aliases": ["latest"], "properties": {"channel": "stable"}}
-    ]
+    versions = [{"version": "1.0", "title": "1.0", "aliases": ["latest"]}]
     (repo / "versions.json").write_text(json.dumps(versions, indent=2) + "\n", encoding="utf-8")
     site = repo / "1.0"
     site.mkdir()

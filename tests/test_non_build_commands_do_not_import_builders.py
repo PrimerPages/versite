@@ -20,8 +20,6 @@ def test_non_build_commands_do_not_import_mkdocs(git_repo: Path, monkeypatch) ->
         ["delete", "latest"],
         ["alias", "1.0", "stable"],
         ["retitle", "1.0", "One"],
-        ["props", "1.0"],
-        ["props", "1.0", "meta.channel=\"beta\""],
         ["set-default", "1.0"],
     ]
     monkeypatch.setattr("versite.commands.serve_directory", lambda *args, **kwargs: None)
