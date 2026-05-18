@@ -1,21 +1,27 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
+
+from versite.jsonpath import delete_path, get_path, set_path
+
 
 @dataclass
 class VersionRecord:
     version: str
     title: str
     aliases: list[str] = field(default_factory=list)
+    properties: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, data: dict[str, object]) -> "VersionRecord":
+    def from_dict(cls, data: dict[str, Any]) -> "VersionRecord":
         return cls(
             version=data["version"],
             title=data.get("title", data["version"]),
             aliases=list(data.get("aliases", [])),
+            properties=dict(data.get("properties", {})),
         )
 
 
@@ -32,25 +38,11 @@ class VersionStore:
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = [
-            {
-                "version": record.version,
-                "title": record.title,
-                "aliases": record.aliases,
-            }
-            for record in self.records
-        ]
+        payload = [asdict(record) for record in self.records]
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    def as_list(self) -> list[dict[str, object]]:
-        return [
-            {
-                "version": record.version,
-                "title": record.title,
-                "aliases": record.aliases,
-            }
-            for record in self.records
-        ]
+    def as_list(self) -> list[dict[str, Any]]:
+        return [asdict(record) for record in self.records]
 
     def find(self, identifier: str) -> VersionRecord | None:
         for record in self.records:
@@ -101,3 +93,19 @@ class VersionStore:
         record = self.get(identifier)
         record.title = title
         return record
+
+    def get_properties(self, identifier: str) -> dict[str, Any]:
+        return self.get(identifier).properties
+
+    def get_property(self, identifier: str, path: str) -> Any:
+        return get_path(self.get(identifier).properties, path)
+
+    def set_property(self, identifier: str, path: str, value: Any) -> dict[str, Any]:
+        record = self.get(identifier)
+        set_path(record.properties, path, value)
+        return record.properties
+
+    def delete_property(self, identifier: str, path: str) -> dict[str, Any]:
+        record = self.get(identifier)
+        delete_path(record.properties, path)
+        return record.properties

@@ -9,6 +9,7 @@ from typing import Any
 
 from versite.config import normalize_prefix
 from versite.git_utils import GitError, branch_worktree, commit_all, git_root, push_branch
+from versite.jsonpath import parse_assignment, parse_value
 from versite.redirects import write_redirect
 from versite.serve import serve_directory
 from versite.versions import VersionStore
@@ -135,6 +136,7 @@ def list_versions(config: dict[str, Any], identifier: str | None = None, as_json
                 "version": record.version,
                 "title": record.title,
                 "aliases": record.aliases,
+                "properties": record.properties,
             },
             as_json,
         )
@@ -247,6 +249,58 @@ def retitle_version(
         committed = commit_all(worktree, message or f"Retitle {identifier}", allow_empty=allow_empty)
         if push and committed:
             push_branch(worktree, config["remote"], config["branch"])
+    return 0
+
+
+def props_version(
+    config: dict[str, Any],
+    identifier: str,
+    prop: str | None = None,
+    *,
+    message: str | None = None,
+    push: bool = False,
+    allow_empty: bool = False,
+    as_json: bool = False,
+) -> int:
+    repo = git_root()
+    needs_write = prop is not None and ("=" in prop or prop.endswith("-"))
+    with branch_worktree(
+        repo,
+        config["branch"],
+        remote=config["remote"],
+        ignore_remote_status=config.get("ignore_remote_status", False),
+    ) as worktree:
+        store = _load_store(worktree, config["deploy_prefix"])
+        if prop is None:
+            _print(store.get_properties(identifier), as_json)
+            return 0
+        if "=" in prop:
+            path, raw_value = parse_assignment(prop)
+            props = store.set_property(identifier, path, parse_value(raw_value))
+            _save_store(worktree, config["deploy_prefix"], store)
+            committed = commit_all(
+                worktree,
+                message or f"Update properties for {identifier}",
+                allow_empty=allow_empty,
+            )
+            if push and committed:
+                push_branch(worktree, config["remote"], config["branch"])
+            _print(props, as_json)
+            return 0
+        if prop.endswith("-"):
+            path = prop[:-1]
+            props = store.delete_property(identifier, path)
+            _save_store(worktree, config["deploy_prefix"], store)
+            committed = commit_all(
+                worktree,
+                message or f"Update properties for {identifier}",
+                allow_empty=allow_empty,
+            )
+            if push and committed:
+                push_branch(worktree, config["remote"], config["branch"])
+            _print(props, as_json)
+            return 0
+        _print(store.get_property(identifier, prop), as_json)
     return 0
 
 

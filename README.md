@@ -75,6 +75,7 @@ versite list [IDENTIFIER]
 versite delete [IDENTIFIER...] [--all]
 versite alias IDENTIFIER [ALIAS...]
 versite retitle IDENTIFIER TITLE
+versite props IDENTIFIER [PROP]
 versite set-default IDENTIFIER
 versite serve
 ```
@@ -182,6 +183,6 @@ This repository also includes a reusable workflow at [`.github/workflows/site.ym
 ## Migration From mike
 
 - `mike deploy` roughly maps to building the site first and then running `versite deploy --site-dir ...`.
-- `mike list`, `delete`, `alias`, `retitle`, and `set-default` roughly map to the same `versite` subcommands.
+- `mike list`, `delete`, `alias`, `retitle`, `props`, and `set-default` roughly map to the same `versite` subcommands.
 - Unlike `mike`, `versite` does not run MkDocs builds.
 - Shared deployment settings should move into `versite.yml`.
