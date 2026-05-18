@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,13 @@ def _copy_contents(source: Path, destination: Path) -> None:
         else:
             destination.unlink()
     shutil.copytree(source, destination, symlinks=True)
+
+
+def _stage_source_site(source: Path) -> Path:
+    staging_root = Path(tempfile.mkdtemp(prefix="versite-source-"))
+    staged_site = staging_root / "site"
+    shutil.copytree(source, staged_site, symlinks=True)
+    return staged_site
 
 
 def _write_alias(
@@ -356,38 +364,42 @@ def deploy_version(
         raise VersiteError(f"site directory does not exist: {site_dir}")
     if not source_site_dir.is_dir():
         raise VersiteError(f"site directory is not a directory: {site_dir}")
+    staged_site_dir = _stage_source_site(source_site_dir)
 
-    with branch_worktree(
-        repo,
-        config["branch"],
-        remote=config["remote"],
-        ignore_remote_status=config.get("ignore_remote_status", False),
-    ) as worktree:
-        site_root = _site_root(worktree, config["deploy_prefix"])
-        site_root.mkdir(parents=True, exist_ok=True)
-        version_path = _identifier_path(worktree, config["deploy_prefix"], version)
-        _copy_contents(source_site_dir, version_path)
-        store = _load_store(worktree, config["deploy_prefix"])
-        title = version
-        existing = store.find(version)
-        if existing is not None:
-            title = existing.title
-        store.upsert(version, title=title, aliases=aliases)
-        for alias in aliases:
-            _write_alias(
+    try:
+        with branch_worktree(
+            repo,
+            config["branch"],
+            remote=config["remote"],
+            ignore_remote_status=config.get("ignore_remote_status", False),
+        ) as worktree:
+            site_root = _site_root(worktree, config["deploy_prefix"])
+            site_root.mkdir(parents=True, exist_ok=True)
+            version_path = _identifier_path(worktree, config["deploy_prefix"], version)
+            _copy_contents(staged_site_dir, version_path)
+            store = _load_store(worktree, config["deploy_prefix"])
+            title = version
+            existing = store.find(version)
+            if existing is not None:
+                title = existing.title
+            store.upsert(version, title=title, aliases=aliases)
+            for alias in aliases:
+                _write_alias(
+                    worktree,
+                    config["deploy_prefix"],
+                    alias,
+                    version,
+                    config["alias_type"],
+                    config.get("redirect_template"),
+                )
+            _save_store(worktree, config["deploy_prefix"], store)
+            committed = commit_all(
                 worktree,
-                config["deploy_prefix"],
-                alias,
-                version,
-                config["alias_type"],
-                config.get("redirect_template"),
+                message or f"Deploy {version}",
+                allow_empty=allow_empty,
             )
-        _save_store(worktree, config["deploy_prefix"], store)
-        committed = commit_all(
-            worktree,
-            message or f"Deploy {version}",
-            allow_empty=allow_empty,
-        )
-        if push and committed:
-            push_branch(worktree, config["remote"], config["branch"])
+            if push and committed:
+                push_branch(worktree, config["remote"], config["branch"])
+    finally:
+        shutil.rmtree(staged_site_dir.parent, ignore_errors=True)
     return 0
