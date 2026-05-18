@@ -8,6 +8,10 @@ inputs:
     description: Space-separated aliases to update alongside the version.
     required: false
     default: ""
+  default-to:
+    description: Optional identifier to set as the root redirect after deploy.
+    required: false
+    default: ""
   site-dir:
     description: Path to the prebuilt static site directory.
     required: true
@@ -79,6 +83,7 @@ runs:
       env:
         VERSITE_VERSION: ${{ inputs.version }}
         VERSITE_ALIASES: ${{ inputs.aliases }}
+        VERSITE_DEFAULT_TO: ${{ inputs.default-to }}
         VERSITE_SITE_DIR: ${{ inputs.site-dir }}
         VERSITE_CONFIG_FILE: ${{ inputs.config-file }}
         VERSITE_REMOTE: ${{ inputs.remote }}
@@ -133,3 +138,32 @@ runs:
           args+=(--ignore-remote-status)
         fi
         versite "${args[@]}"
+
+        if [[ -n "$VERSITE_DEFAULT_TO" ]]; then
+          default_args=(set-default "$VERSITE_DEFAULT_TO")
+          if [[ -n "$VERSITE_CONFIG_FILE" ]]; then
+            default_args+=(--config-file "$VERSITE_CONFIG_FILE")
+          fi
+          if [[ -n "$VERSITE_REMOTE" ]]; then
+            default_args+=(--remote "$VERSITE_REMOTE")
+          fi
+          if [[ -n "$VERSITE_BRANCH" ]]; then
+            default_args+=(--branch "$VERSITE_BRANCH")
+          fi
+          if [[ "$VERSITE_PUSH" == "true" ]]; then
+            default_args+=(--push)
+          fi
+          if [[ "$VERSITE_ALLOW_EMPTY" == "true" ]]; then
+            default_args+=(--allow-empty)
+          fi
+          if [[ -n "$VERSITE_DEPLOY_PREFIX" ]]; then
+            default_args+=(--deploy-prefix "$VERSITE_DEPLOY_PREFIX")
+          fi
+          if [[ -n "$VERSITE_REDIRECT_TEMPLATE" ]]; then
+            default_args+=(-T "$VERSITE_REDIRECT_TEMPLATE")
+          fi
+          if [[ "$VERSITE_IGNORE_REMOTE_STATUS" == "true" ]]; then
+            default_args+=(--ignore-remote-status)
+          fi
+          versite "${default_args[@]}"
+        fi

@@ -124,6 +124,7 @@ Example usage:
   with:
     version: 1.0
     aliases: latest
+    default-to: latest
     site-dir: dist/site
     branch: gh-pages
     push: true
@@ -173,10 +174,13 @@ jobs:
         with:
           version: ${{ inputs.version }}
           aliases: latest
+          default-to: latest
           site-dir: _site
           branch: gh-pages
           push: true
 ```
+
+Set `default-to` when you also want a root `index.html` redirect written in the deployment branch. A common pattern is `default-to: latest`, which makes `/` forward to the alias that tracks your current preferred version.
 
 This repository also includes a reusable workflow at [`.github/workflows/site.yml`](/home/athackst/Code/primerpages/versite/.github/workflows/site.yml) that builds with Jekyll and deploys with `versite`. It computes the Jekyll `baseurl` from the version and optional deploy prefix before calling `versite deploy`.
 
