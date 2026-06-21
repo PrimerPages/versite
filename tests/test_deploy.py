@@ -27,12 +27,20 @@ def test_deploy_site_dir_copies_contents_and_updates_versions(git_repo: Path, tm
     (site_dir / "index.html").write_text("2.0", encoding="utf-8")
     (site_dir / "guide").mkdir()
     (site_dir / "guide" / "index.html").write_text("guide", encoding="utf-8")
+    (site_dir / "guide" / "reference").mkdir()
+    (site_dir / "guide" / "reference" / "index.html").write_text("reference", encoding="utf-8")
+    (site_dir / "about.html").write_text("about", encoding="utf-8")
 
     assert main(["deploy", "2.0", "latest", "--site-dir", str(site_dir), "-b", "gh-pages"]) == 0
     versions = json.loads(_show_file(git_repo, "gh-pages", "versions.json"))
     assert any(item["version"] == "2.0" for item in versions)
     assert _show_file(git_repo, "gh-pages", "2.0/index.html") == "2.0"
     assert _show_file(git_repo, "gh-pages", "2.0/guide/index.html") == "guide"
+    assert "../../2.0/guide/" in _show_file(git_repo, "gh-pages", "latest/guide/index.html")
+    assert "../../../2.0/guide/reference/" in _show_file(
+        git_repo, "gh-pages", "latest/guide/reference/index.html"
+    )
+    assert "../2.0/about.html" in _show_file(git_repo, "gh-pages", "latest/about.html")
 
 
 def test_deploy_requires_site_dir(git_repo: Path, capsys) -> None:

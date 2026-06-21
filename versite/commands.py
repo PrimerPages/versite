@@ -66,6 +66,37 @@ def _alias_redirect_href(alias: str, version: str) -> str:
     return f"{upward}{version}/"
 
 
+def _relative_redirect_href(source: Path, target: Path, *, clean_url: bool = False) -> str:
+    href = os.path.relpath(target, source.parent).replace(os.sep, "/")
+    if clean_url:
+        href = href.rstrip("/") + "/"
+    return href
+
+
+def _write_alias_redirects(
+    alias_path: Path,
+    version_path: Path,
+    alias: str,
+    version: str,
+    redirect_template: str | None,
+) -> None:
+    write_redirect(alias_path / "index.html", _alias_redirect_href(alias, version), redirect_template)
+    for version_file in version_path.rglob("*.html"):
+        relative_path = version_file.relative_to(version_path)
+        if relative_path == Path("index.html"):
+            continue
+        alias_file = alias_path / relative_path
+        target = version_file
+        clean_url = version_file.name == "index.html"
+        if clean_url:
+            target = version_file.parent
+        write_redirect(
+            alias_file,
+            _relative_redirect_href(alias_file, target, clean_url=clean_url),
+            redirect_template,
+        )
+
+
 def _copy_contents(source: Path, destination: Path) -> None:
     if destination.exists() or destination.is_symlink():
         if destination.is_dir() and not destination.is_symlink():
@@ -114,7 +145,7 @@ def _write_alias(
         else:
             alias_path.unlink()
     if alias_type == "redirect":
-        write_redirect(alias_path / "index.html", _alias_redirect_href(alias, version), redirect_template)
+        _write_alias_redirects(alias_path, version_path, alias, version, redirect_template)
         return
     if alias_type == "copy":
         _copy_contents(version_path, alias_path)
