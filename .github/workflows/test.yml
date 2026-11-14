@@ -68,11 +68,19 @@ jobs:
           git show gh-pages:index.html | grep 'http-equiv="refresh"'
 
   success:
+    if: ${{ always() }}
     needs:
       - test
       - action-smoke
     runs-on: ubuntu-latest
     steps:
-      - name: "Success"
-        shell: bash
-        run: echo "All checks completed successfully"
+      - name: Check required job results
+        env:
+          NEEDS_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS_RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if ! echo "$NEEDS_RESULTS" | jq -e 'all(.[]; .result == "success")' > /dev/null; then
+            echo "::error::All required jobs must succeed. A job failed, was cancelled, or was skipped."
+            exit 1
+          fi
+          echo "All required jobs passed!"
