@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+from inversion.loose import Version
 
 from versite.jsonpath import delete_path, get_path, set_path
 
@@ -25,6 +28,11 @@ class VersionRecord:
         )
 
 
+def _version_sort_key(record: VersionRecord) -> tuple[int, Version]:
+    # Match mike: development identifiers sort above numbered releases.
+    return (0 if re.match(r"v?\d", record.version) else 1, Version(record.version))
+
+
 class VersionStore:
     def __init__(self, records: list[VersionRecord] | None = None) -> None:
         self.records = records or []
@@ -38,11 +46,11 @@ class VersionStore:
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = [asdict(record) for record in self.records]
+        payload = self.as_list()
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     def as_list(self) -> list[dict[str, Any]]:
-        return [asdict(record) for record in self.records]
+        return [asdict(record) for record in sorted(self.records, key=_version_sort_key, reverse=True)]
 
     def find(self, identifier: str) -> VersionRecord | None:
         for record in self.records:

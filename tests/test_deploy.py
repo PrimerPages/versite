@@ -85,3 +85,16 @@ def test_deploy_supports_branch_names_with_slashes(git_repo: Path, tmp_path: Pat
     branch = "ci-test/deploy-site"
     assert main(["deploy", "5.0", "--site-dir", str(site_dir), "-b", branch]) == 0
     assert _show_file(git_repo, branch, "5.0/index.html") == "5.0"
+
+
+def test_deploy_writes_newest_first_manifest_and_preserves_old_versions(git_repo: Path, tmp_path: Path) -> None:
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text("Release content")
+    for version in ["2.0.0", "dev", "2.2.1"]:
+        assert main(["deploy", version, "--site-dir", str(site_dir), "-b", "gh-pages"]) == 0
+    versions = json.loads(_show_file(git_repo, "gh-pages", "versions.json"))
+    assert [item["version"] for item in versions] == ["dev", "2.2.1", "2.0.0", "1.0"]
+    assert versions[-1]["aliases"] == ["latest"]
+    assert versions[-1]["properties"] == {"channel": "stable"}
+    assert _show_file(git_repo, "gh-pages", "1.0/index.html") == "<h1>1.0</h1>"
