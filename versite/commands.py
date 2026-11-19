@@ -429,8 +429,8 @@ def deploy_version(
             existing = store.find(version)
             if existing is not None:
                 title = existing.title
-            store.upsert(version, title=title, aliases=aliases)
-            for alias in aliases:
+            record = store.upsert(version, title=title, aliases=aliases)
+            for alias in record.aliases:
                 _write_alias(
                     worktree,
                     config["deploy_prefix"],

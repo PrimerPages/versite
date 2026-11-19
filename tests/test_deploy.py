@@ -6,6 +6,8 @@ import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
+
 from versite.cli import main
 from versite.git_utils import branch_worktree as real_branch_worktree
 
@@ -98,3 +100,46 @@ def test_deploy_writes_newest_first_manifest_and_preserves_old_versions(git_repo
     assert versions[-1]["aliases"] == ["latest"]
     assert versions[-1]["properties"] == {"channel": "stable"}
     assert _show_file(git_repo, "gh-pages", "1.0/index.html") == "<h1>1.0</h1>"
+
+
+@pytest.mark.parametrize("alias_type", ["redirect", "copy", "symlink"])
+@pytest.mark.parametrize("new_aliases", [[], ["preview"]])
+def test_redeploy_refreshes_all_attached_aliases(
+    git_repo: Path, tmp_path: Path, alias_type: str, new_aliases: list[str]
+) -> None:
+    config = git_repo / "versite.yml"
+    config.write_text(f"alias_type: {alias_type}\n")
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text("Original home")
+    (site_dir / "removed.html").write_text("Obsolete page")
+    assert main(["deploy", "2.0", "stable", "pinned", "--site-dir", str(site_dir)]) == 0
+    previous_default = _show_file(git_repo, "gh-pages", "index.html")
+    previous_other_alias = _show_file(git_repo, "gh-pages", "latest/index.html")
+
+    (site_dir / "index.html").write_text("Updated home")
+    (site_dir / "removed.html").unlink()
+    (site_dir / "added.html").write_text("New page")
+    assert main(["deploy", "2.0", *new_aliases, "--site-dir", str(site_dir)]) == 0
+
+    aliases = {"stable", "pinned", *new_aliases}
+    with real_branch_worktree(git_repo, "gh-pages", ignore_remote_status=True) as worktree:
+        for alias in aliases:
+            alias_dir = worktree / alias
+            assert not (alias_dir / "removed.html").exists()
+            if alias_type == "redirect":
+                assert "../2.0/" in (alias_dir / "index.html").read_text()
+                assert "../2.0/added.html" in (alias_dir / "added.html").read_text()
+            else:
+                assert (alias_dir / "index.html").read_text() == "Updated home"
+                assert (alias_dir / "added.html").read_text() == "New page"
+            assert alias_dir.is_symlink() == (alias_type == "symlink")
+        manifest = json.loads((worktree / "versions.json").read_text())
+        deployed = next(item for item in manifest if item["version"] == "2.0")
+        assert set(deployed["aliases"]) == aliases
+        previous = next(item for item in manifest if item["version"] == "1.0")
+        assert previous["aliases"] == ["latest"]
+        assert previous["properties"] == {"channel": "stable"}
+        assert (worktree / "1.0/index.html").read_text() == "<h1>1.0</h1>"
+        assert (worktree / "latest/index.html").read_text() == previous_other_alias
+        assert (worktree / "index.html").read_text() == previous_default
