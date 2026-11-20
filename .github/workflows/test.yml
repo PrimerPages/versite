@@ -54,6 +54,7 @@ jobs:
         with:
           version: "2.0"
           aliases: latest
+          alias-type: redirect
           default-to: latest
           site-dir: _site
           branch: gh-pages

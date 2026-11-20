@@ -154,6 +154,34 @@ def test_deploy_writes_newest_first_manifest_and_preserves_old_versions(git_repo
     assert _show_file(git_repo, "gh-pages", "1.0/index.html") == "<h1>1.0</h1>"
 
 
+@pytest.mark.parametrize(
+    ("alias_type", "configured_type"),
+    [("redirect", "copy"), ("copy", "symlink"), ("symlink", "redirect")],
+)
+def test_deploy_alias_type_overrides_configuration(
+    git_repo: Path, tmp_path: Path, alias_type: str, configured_type: str
+) -> None:
+    config = git_repo / "versite.yml"
+    config.write_text(f"alias_type: {configured_type}\n")
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text("Version content")
+
+    assert main([
+        "deploy", "2.0", "stable", "--site-dir", str(site_dir),
+        "--alias-type", alias_type,
+    ]) == 0
+
+    with real_branch_worktree(git_repo, "gh-pages", ignore_remote_status=True) as worktree:
+        alias_dir = worktree / "stable"
+        assert alias_dir.is_symlink() == (alias_type == "symlink")
+        if alias_type == "redirect":
+            assert 'href="../2.0/"' in (alias_dir / "index.html").read_text()
+        else:
+            assert (alias_dir / "index.html").read_text() == "Version content"
+    assert config.read_text() == f"alias_type: {configured_type}\n"
+
+
 @pytest.mark.parametrize("alias_type", ["redirect", "copy", "symlink"])
 @pytest.mark.parametrize("new_aliases", [[], ["preview"]])
 def test_redeploy_refreshes_all_attached_aliases(
