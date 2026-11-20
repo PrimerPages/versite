@@ -200,8 +200,9 @@ its own version metadata and default redirect.
 
 ### Choose an alias mode
 
-Set `alias_type` in `versite.yml` to choose how aliases work. Each deployment
-recreates all aliases attached to its version using this mode:
+Set `alias_type` in `versite.yml` to choose how aliases work. Override it with
+`--alias-type` on `deploy` or `alias`, or with the action's `alias-type` input.
+Each deployment recreates all aliases attached to its version using this mode:
 
 | Mode | Behavior |
 | --- | --- |
@@ -249,8 +250,6 @@ The command names are familiar, but supported options and some behaviors differ:
 
 - Versite moves an existing alias when you assign it to another version, without
   requiring `--update-aliases`.
-- Set the deployment alias mode in `versite.yml`; `deploy` doesn't accept
-  `--alias-type`.
 - Use `versite props 1.0 hidden=true` to set a property and
   `versite props 1.0 hidden-` to delete it. The `props` command uses this syntax
   instead of mike's property-editing flags.

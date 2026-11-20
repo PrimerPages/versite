@@ -26,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     deploy.add_argument("aliases", nargs="*")
     _add_common_options(deploy)
     deploy.add_argument("--site-dir")
+    deploy.add_argument("--alias-type", choices=["redirect", "copy", "symlink"])
 
     list_parser = subparsers.add_parser("list")
     list_parser.add_argument("identifier", nargs="?")
