@@ -72,7 +72,7 @@ class VersionStore:
     def upsert(self, version: str, title: str | None = None, aliases: list[str] | None = None) -> VersionRecord:
         record = next((item for item in self.records if item.version == version), None)
         if record is None:
-            record = VersionRecord(version=version, title=title or version)
+            record = VersionRecord(version=version, title=version if title is None else title)
             self.records.append(record)
         elif title is not None:
             record.title = title
