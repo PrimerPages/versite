@@ -223,6 +223,16 @@ Version selectors that read `versions.json` use the same order as `versite list`
 Changing a display title or alias doesn't change the sort order. Existing
 entries are sorted the next time you deploy or update version metadata.
 
+### Synchronize the deployment branch
+
+Versite fetches the deployment branch before checking its local state. If the
+local branch is behind the remote, versite advances it with a fast-forward.
+Local commits are preserved. If the histories have diverged, resolve the
+divergence before deploying again.
+
+Use `--ignore-remote-status` to skip fetching and synchronization. This option
+doesn't force a push or resolve diverged histories.
+
 ### Publish with GitHub Pages
 
 Versite updates the deployment branch. Choose how GitHub Pages publishes its
