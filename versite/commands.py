@@ -9,7 +9,6 @@ from typing import Any
 
 from versite.config import normalize_prefix
 from versite.git_utils import GitError, branch_worktree, commit_all, git_root, push_branch
-from versite.jsonpath import parse_assignment, parse_value
 from versite.redirects import write_redirect
 from versite.serve import serve_directory
 from versite.versions import VersionStore
@@ -292,18 +291,50 @@ def retitle_version(
     return 0
 
 
+def _parse_property_edits(edits: list[tuple[str, str | None]]) -> list[tuple[str, str, Any]]:
+    parsed: list[tuple[str, str, Any]] = []
+    for operation, expression in edits:
+        if operation in {"set", "set-string"}:
+            path, separator, raw = expression.partition("=")
+            path = path.strip()
+            if not separator or not path:
+                raise VersiteError("property assignment must be in PATH=VALUE form")
+            if operation == "set-string":
+                value = raw
+            else:
+                value = json.loads(raw)
+            parsed.append(("set", path, value))
+        elif operation == "delete":
+            if not expression:
+                raise VersiteError("property path must not be empty")
+            parsed.append(("delete", expression, None))
+        elif operation == "set-all":
+            value = json.loads(expression)
+            if not isinstance(value, dict):
+                raise VersiteError("--set-all requires a JSON object")
+            parsed.append(("set-all", "", value))
+        elif operation == "delete-all":
+            parsed.append(("set-all", "", {}))
+    return parsed
+
+
 def props_version(
     config: dict[str, Any],
     identifier: str,
     prop: str | None = None,
     *,
+    edits: list[tuple[str, str | None]] | None = None,
     message: str | None = None,
     push: bool = False,
     allow_empty: bool = False,
     as_json: bool = False,
 ) -> int:
+    if edits and prop is not None:
+        raise VersiteError("use property-editing flags or a positional property, not both")
+    if prop is not None and "=" in prop:
+        raise VersiteError("use --set PATH=JSON or --set-string PATH=STRING to edit properties")
+    operations = _parse_property_edits(edits or [])
     repo = git_root()
-    needs_write = prop is not None and ("=" in prop or prop.endswith("-"))
     with branch_worktree(
         repo,
         config["branch"],
@@ -311,36 +342,25 @@ def props_version(
         ignore_remote_status=config.get("ignore_remote_status", False),
     ) as worktree:
         store = _load_store(worktree, config["deploy_prefix"])
-        if prop is None:
-            _print(store.get_properties(identifier), as_json)
+        if not operations:
+            value = store.get_properties(identifier) if prop is None else store.get_property(identifier, prop)
+            _print(value, as_json)
             return 0
-        if "=" in prop:
-            path, raw_value = parse_assignment(prop)
-            props = store.set_property(identifier, path, parse_value(raw_value))
-            _save_store(worktree, config["deploy_prefix"], store)
-            committed = commit_all(
-                worktree,
-                message or f"Update properties for {identifier}",
-                allow_empty=allow_empty,
-            )
-            if push and committed:
-                push_branch(worktree, config["remote"], config["branch"])
-            _print(props, as_json)
-            return 0
-        if prop.endswith("-"):
-            path = prop[:-1]
-            props = store.delete_property(identifier, path)
-            _save_store(worktree, config["deploy_prefix"], store)
-            committed = commit_all(
-                worktree,
-                message or f"Update properties for {identifier}",
-                allow_empty=allow_empty,
-            )
-            if push and committed:
-                push_branch(worktree, config["remote"], config["branch"])
-            _print(props, as_json)
-            return 0
-        _print(store.get_property(identifier, prop), as_json)
+        record = store.get(identifier)
+        for operation, path, value in operations:
+            if operation == "set":
+                store.set_property(identifier, path, value)
+            elif operation == "delete":
+                store.delete_property(identifier, path)
+            else:
+                record.properties = value
+        _save_store(worktree, config["deploy_prefix"], store)
+        committed = commit_all(
+            worktree, message or f"Update properties for {identifier}", allow_empty=allow_empty,
+        )
+        if push and committed:
+            push_branch(worktree, config["remote"], config["branch"])
+        _print(record.properties, as_json)
     return 0
 
 

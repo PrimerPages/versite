@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
@@ -63,19 +62,3 @@ def delete_path(data: dict[str, Any], path: str) -> None:
         del current[last]
     else:
         del current[last]
-
-
-def parse_assignment(expression: str) -> tuple[str, str]:
-    if "=" not in expression:
-        raise ValueError("property assignment must be in PATH=VALUE form")
-    path, value = expression.split("=", 1)
-    return path.strip(), value.strip()
-
-
-def parse_value(raw: str) -> Any:
-    if raw == "":
-        return ""
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return raw
