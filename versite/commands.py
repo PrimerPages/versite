@@ -53,13 +53,6 @@ def _save_store(worktree: Path, deploy_prefix: str, store: VersionStore) -> None
     store.save(_versions_file(worktree, deploy_prefix))
 
 
-def _root_redirect_href(identifier: str, deploy_prefix: str) -> str:
-    prefix = normalize_prefix(deploy_prefix)
-    if prefix:
-        return f"./{prefix}/{identifier}/"
-    return f"./{identifier}/"
-
-
 def _alias_redirect_href(alias: str, version: str) -> str:
     alias_parts = Path(alias).parts
     upward = "../" * max(len(alias_parts), 1)
@@ -119,12 +112,12 @@ def _ensure_root_redirect(
     identifier: str,
     redirect_template: str | None,
 ) -> None:
-    root_index = worktree / "index.html"
+    root_index = _site_root(worktree, deploy_prefix) / "index.html"
     if root_index.exists() or root_index.is_symlink():
         return
     write_redirect(
         root_index,
-        _root_redirect_href(identifier, deploy_prefix),
+        f"./{identifier}/",
         redirect_template,
     )
 
@@ -369,8 +362,8 @@ def set_default(
         store = _load_store(worktree, config["deploy_prefix"])
         store.get(identifier)
         write_redirect(
-            worktree / "index.html",
-            _root_redirect_href(identifier, config["deploy_prefix"]),
+            _site_root(worktree, config["deploy_prefix"]) / "index.html",
+            f"./{identifier}/",
             config.get("redirect_template"),
         )
         committed = commit_all(worktree, message or f"Set default site to {identifier}", allow_empty=allow_empty)

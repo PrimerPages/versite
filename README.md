@@ -1,12 +1,13 @@
 # versite
 
-Use versite to publish multiple versions of a static site from a Git branch.
-You can give versions aliases such as `latest`, choose a default version, and
-keep older versions available at their existing URLs.
+Versite brings [mike](https://github.com/jimporter/mike)-style versioned
+documentation to any static site generator. Build your site with MkDocs,
+Jekyll, or another tool, then use versite to publish versions, manage aliases,
+and choose a default version.
 
-Build your site with MkDocs, Jekyll, or another static site generator before you
-run versite. Versite copies the built files into a deployment branch, updates
-`versions.json`, and commits the result.
+Each version has its own directory in a Git deployment branch, so older
+versions stay available at their existing URLs. Versite manages the built files,
+redirects, and version metadata independently of your build tool.
 
 ## Install versite
 
@@ -19,8 +20,9 @@ versite --help
 
 ## Deploy a version
 
-Run these commands from your site's Git repository, with an `origin` remote
-configured for the repository where you publish your site.
+Run these commands from your site's Git repository. The repository must have
+at least one commit and an `origin` remote configured for your deployment
+repository.
 
 1. Build your site into a directory such as `dist/site`. Configure your site
    generator to use the version's URL path. For example, version `1.0` hosted at
@@ -39,11 +41,16 @@ configured for the repository where you publish your site.
 
 By default, versite stores the site in the `gh-pages` branch. Version `1.0` is
 available under `1.0/`, and `latest/` redirects to that version. Deploying a new
-version preserves the existing versions.
+version preserves the existing versions. Redeploying a version refreshes all
+aliases attached to it, even if you omit those aliases from the command.
 
-If you want to inspect the result before publishing, omit `--push` to update
-only the local deployment branch. Run `versite serve` to preview that branch at
+To preview a deployment locally, keep `push: false` in your configuration and
+omit `--push`. Run `versite serve` to preview the local deployment branch at
 `http://127.0.0.1:8000`.
+
+These commands update the deployment branch. Your host serves the files from
+that branch or from a deployment artifact. For GitHub Pages, see
+[Publish with GitHub Pages](#publish-with-github-pages).
 
 For build examples, see [Build for versioned URLs](#build-for-versioned-urls).
 
@@ -73,7 +80,8 @@ Use `--config-file PATH` to read a different configuration file.
 
 Use a version identifier or one of its aliases to select a published version.
 Add `--push` to commands that change the deployment branch when you want to
-publish those changes.
+push those changes to your remote. If you assign an existing alias to another
+version, versite moves that alias to the selected version.
 
 | Task | Command |
 | --- | --- |
@@ -82,6 +90,8 @@ publish those changes.
 | Assign an alias to a version. | `versite alias 1.0 stable --push` |
 | Change a version's display title. | `versite retitle 1.0 "Version 1.0" --push` |
 | Read a version's properties. | `versite props 1.0 --json` |
+| Set a version property. | `versite props 1.0 hidden=true --push` |
+| Delete a version property. | `versite props 1.0 hidden- --push` |
 | Change the default version. | `versite set-default stable --push` |
 | Delete a version or alias. | `versite delete 1.0 --push` |
 
@@ -89,8 +99,9 @@ For all available options, run `versite --help` or `versite COMMAND --help`.
 
 ## Use the GitHub action
 
-Build your site before calling the action. The following Jekyll workflow
-builds a version and pushes it to `gh-pages`:
+Use the action after you build your site. This Jekyll workflow builds a version
+and pushes the result to `gh-pages`. Configure your hosting service separately
+to publish the branch contents.
 
 ```yaml
 name: Site
@@ -142,7 +153,9 @@ a repository path, include that path in `--baseurl`, such as
 `"/my-project/$VERSION"`.
 
 Use `default-to: latest` to make the site's root URL redirect to the current
-`latest` alias. See the [action inputs](action.yml) for configuration options.
+`latest` alias. With `deploy-prefix: docs`, this redirects `docs/` to
+`docs/latest/`. Omit `default-to` to preserve an existing default redirect.
+See the [action inputs](action.yml) for configuration options.
 
 ## Advanced
 
@@ -151,13 +164,19 @@ Use `default-to: latest` to make the site's root URL redirect to the current
 Configure generated links for the location where you publish each version.
 Versite preserves the URLs in your built files.
 
-For MkDocs, set `site_url` to the version's published URL in your build
-configuration. If your configuration uses version environment variables, pass
-them when you build:
+For MkDocs, read the version's published URL from an
+[environment variable](https://www.mkdocs.org/user-guide/configuration/#environment-variables)
+in `mkdocs.yml`:
+
+```yaml
+site_url: !ENV VERSITE_SITE_URL
+```
+
+Set that variable when you build, then deploy the result:
 
 ```bash
 VERSION=1.0
-VERSITE_VERSION="$VERSION" MIKE_DOCS_VERSION="$VERSION" \
+VERSITE_SITE_URL="https://example.com/project/$VERSION/" \
   mkdocs build --clean --site-dir dist/site
 versite deploy "$VERSION" latest --site-dir dist/site --push
 ```
@@ -174,9 +193,15 @@ Include any repository or hosting prefix in the base path. The `deploy_prefix`
 setting controls the directory inside the deployment branch; configure your
 site generator's URLs separately.
 
+With `deploy_prefix: docs`, the default redirect lives at `docs/index.html`.
+Running `versite set-default latest` redirects `docs/` to `docs/latest/` and
+leaves the branch's root `index.html` unchanged. Each deployment prefix has
+its own version metadata and default redirect.
+
 ### Choose an alias mode
 
-Set `alias_type` in `versite.yml` to choose how aliases work:
+Set `alias_type` in `versite.yml` to choose how aliases work. Each deployment
+recreates all aliases attached to its version using this mode:
 
 | Mode | Behavior |
 | --- | --- |
@@ -189,7 +214,8 @@ Set `alias_type` in `versite.yml` to choose how aliases work:
 Version selectors that read `versions.json` use the same order as `versite list`:
 
 - Development names such as `dev`, `devel`, and `nightly` appear above numbered versions.
-- Each group uses mike's loose version ordering, from newest to oldest.
+- Numbered versions use mike's loose version comparison, from newest to oldest.
+  Development names use the same comparator within their group.
 - Comparisons use the version identifier as written, including any `v` prefix.
   Use a consistent prefix to keep numbered versions in the order you expect.
 
@@ -218,6 +244,19 @@ into `versite.yml`.
 | --- | --- |
 | `mike deploy 1.0 latest` | Build the site, then run `versite deploy 1.0 latest --site-dir dist/site`. |
 | `mike list`, `delete`, `alias`, `retitle`, `props`, or `set-default` | Use the corresponding versite command. |
+
+The command names are familiar, but supported options and some behaviors differ:
+
+- Versite moves an existing alias when you assign it to another version, without
+  requiring `--update-aliases`.
+- Set the deployment alias mode in `versite.yml`; `deploy` doesn't accept
+  `--alias-type`.
+- Use `versite props 1.0 hidden=true` to set a property and
+  `versite props 1.0 hidden-` to delete it. The `props` command uses this syntax
+  instead of mike's property-editing flags.
+
+Run `versite COMMAND --help` to check the available options before adapting a
+script that uses mike.
 
 ## Contribute
 

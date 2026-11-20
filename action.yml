@@ -9,7 +9,7 @@ inputs:
     required: false
     default: ""
   default-to:
-    description: Optional identifier to set as the root redirect after deploy.
+    description: Optional version or alias to make the default within deploy-prefix after deployment.
     required: false
     default: ""
   site-dir:
