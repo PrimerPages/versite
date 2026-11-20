@@ -288,6 +288,19 @@ Running `versite set-default latest` redirects `docs/` to `docs/latest/` and
 leaves the branch's root `index.html` unchanged. Each deployment prefix has
 its own version metadata and default redirect.
 
+### Set a default before deployment
+
+Use `--allow-undefined` to configure the default redirect before you deploy its
+target version or alias:
+
+```bash
+versite set-default latest --allow-undefined --push
+```
+
+This creates a redirect to `latest/` without creating a version or alias. The
+destination is available after you deploy a version with the `latest` alias.
+Without `--allow-undefined`, the target must already exist.
+
 ### Choose an alias mode
 
 Set `alias_type` in `versite.yml` to choose how aliases work. Override it with
