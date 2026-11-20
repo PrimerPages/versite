@@ -59,7 +59,7 @@ def ensure_branch_ready(
 
     if not ignore_remote_status:
         subprocess.run(
-            ["git", "fetch", remote, branch],
+            ["git", "fetch", remote, f"refs/heads/{branch}:{remote_ref}"],
             cwd=repo,
             capture_output=True,
             text=True,
@@ -85,9 +85,9 @@ def ensure_branch_ready(
         cwd=repo,
     )
     if behind.returncode == 0:
-        raise GitError(
-            f"local branch '{branch}' is behind {remote}/{branch}; fetch or use --ignore-remote-status"
-        )
+        # A local fetch enforces a fast-forward and refuses checked-out branches.
+        run_git(repo, "fetch", ".", f"{remote_ref}:{local_ref}")
+        return
     if ahead.returncode != 0:
         raise GitError(
             f"local branch '{branch}' diverged from {remote}/{branch}; resolve it or use --ignore-remote-status"
