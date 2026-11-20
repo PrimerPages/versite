@@ -51,6 +51,58 @@ def test_deploy_requires_site_dir(git_repo: Path, capsys) -> None:
     assert "deploy requires --site-dir" in captured.err
 
 
+@pytest.mark.parametrize("prefix", ["", "docs", "products/widget/docs"])
+@pytest.mark.parametrize("existing_homepage", [False, True])
+def test_default_redirects_stay_inside_the_site_root(
+    git_repo: Path, tmp_path: Path, prefix: str, existing_homepage: bool
+) -> None:
+    with real_branch_worktree(git_repo, "gh-pages", ignore_remote_status=True) as worktree:
+        if existing_homepage:
+            (worktree / "index.html").write_text("Main homepage")
+        other_site = worktree / "other"
+        other_site.mkdir()
+        (other_site / "index.html").write_text("Other site's default")
+        subprocess.run(["git", "add", "-A"], cwd=worktree, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Seed independent homepages"],
+            cwd=worktree, check=True, capture_output=True,
+        )
+
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "index.html").write_text("Version content")
+    options = ["--deploy-prefix", prefix]
+    assert main(["deploy", "2.0", "latest", "--site-dir", str(site_dir), *options]) == 0
+
+    default_path = str(Path(prefix) / "index.html")
+    initial_default = _show_file(git_repo, "gh-pages", default_path)
+    if not prefix and existing_homepage:
+        assert initial_default == "Main homepage"
+    else:
+        assert 'href="./latest/"' in initial_default
+
+    # Deploying another version preserves the site's existing default.
+    assert main(["deploy", "3.0", "--site-dir", str(site_dir), *options]) == 0
+    assert _show_file(git_repo, "gh-pages", default_path) == initial_default
+
+    # Explicit default changes are relative to this site's own directory.
+    assert main(["set-default", "3.0", *options]) == 0
+    assert 'href="./3.0/"' in _show_file(git_repo, "gh-pages", default_path)
+    assert main(["set-default", "latest", *options]) == 0
+    assert 'href="./latest/"' in _show_file(git_repo, "gh-pages", default_path)
+    assert _show_file(git_repo, "gh-pages", "other/index.html") == "Other site's default"
+
+    if prefix:
+        if existing_homepage:
+            assert _show_file(git_repo, "gh-pages", "index.html") == "Main homepage"
+        else:
+            root_index = subprocess.run(
+                ["git", "cat-file", "-e", "gh-pages:index.html"],
+                cwd=git_repo, capture_output=True,
+            )
+            assert root_index.returncode != 0
+
+
 def test_deploy_does_not_require_builder_config(git_repo: Path, tmp_path: Path) -> None:
     config = git_repo / "versite.yml"
     config.write_text("branch: gh-pages\nalias_type: redirect\n", encoding="utf-8")
