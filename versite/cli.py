@@ -20,7 +20,7 @@ from versite.config import apply_cli_overrides, load_config
 class PropertyEditAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         edits = list(getattr(namespace, self.dest, None) or [])
-        edits.append((option_string.removeprefix("--"), values if self.nargs != 0 else None))
+        edits.append((option_string.removeprefix("--").removeprefix("prop-"), values if self.nargs != 0 else None))
         setattr(namespace, self.dest, edits)
 
 
@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_options(deploy)
     deploy.add_argument("--site-dir")
     deploy.add_argument("--alias-type", choices=["redirect", "copy", "symlink"])
+    deploy.add_argument("-t", "--title", help="Display title for the deployed version.")
+    _add_property_options(deploy, prefix="prop-")
 
     list_parser = subparsers.add_parser("list")
     list_parser.add_argument("identifier", nargs="?")
@@ -61,20 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
     props.add_argument("prop", nargs="?", help="Property path to read.")
     _add_common_options(props)
     props.add_argument("--json", action="store_true")
-    for option, metavar, help_text in [
-        ("set", "PATH=JSON", "Set a property to a JSON value."),
-        ("set-string", "PATH=STRING", "Set a property to a literal string."),
-        ("set-all", "JSON", "Replace all properties with a JSON object."),
-        ("delete", "PATH", "Delete a property."),
-    ]:
-        props.add_argument(
-            f"--{option}", dest="property_edits", action=PropertyEditAction,
-            metavar=metavar, help=help_text,
-        )
-    props.add_argument(
-        "--delete-all", dest="property_edits", action=PropertyEditAction, nargs=0,
-        help="Clear all properties. Edits are applied in command-line order in one commit.",
-    )
+    _add_property_options(props)
 
     default = subparsers.add_parser("set-default")
     default.add_argument("identifier")
@@ -90,6 +79,23 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=8000)
 
     return parser
+
+
+def _add_property_options(parser: argparse.ArgumentParser, prefix: str = "") -> None:
+    for option, metavar, help_text in [
+        ("set", "PATH=JSON", "Set a property to a JSON value."),
+        ("set-string", "PATH=STRING", "Set a property to a literal string."),
+        ("set-all", "JSON", "Replace all properties with a JSON object."),
+        ("delete", "PATH", "Delete a property."),
+    ]:
+        parser.add_argument(
+            f"--{prefix}{option}", dest="property_edits", action=PropertyEditAction,
+            metavar=metavar, help=help_text,
+        )
+    parser.add_argument(
+        f"--{prefix}delete-all", dest="property_edits", action=PropertyEditAction, nargs=0,
+        help="Clear all properties. Edits are applied in command-line order in one commit.",
+    )
 
 
 def _add_common_options(parser: argparse.ArgumentParser) -> None:
@@ -134,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
                 push=push,
                 allow_empty=args.allow_empty,
                 site_dir=args.site_dir,
+                title=args.title,
+                edits=args.property_edits,
             )
         if args.command == "list":
             return list_versions(config, args.identifier, as_json=args.json)

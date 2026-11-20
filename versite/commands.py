@@ -318,6 +318,19 @@ def _parse_property_edits(edits: list[tuple[str, str | None]]) -> list[tuple[str
     return parsed
 
 
+def _apply_property_edits(
+    store: VersionStore, identifier: str, operations: list[tuple[str, str, Any]],
+) -> None:
+    record = store.get(identifier)
+    for operation, path, value in operations:
+        if operation == "set":
+            store.set_property(identifier, path, value)
+        elif operation == "delete":
+            store.delete_property(identifier, path)
+        else:
+            record.properties = value
+
+
 def props_version(
     config: dict[str, Any],
     identifier: str,
@@ -347,13 +360,7 @@ def props_version(
             _print(value, as_json)
             return 0
         record = store.get(identifier)
-        for operation, path, value in operations:
-            if operation == "set":
-                store.set_property(identifier, path, value)
-            elif operation == "delete":
-                store.delete_property(identifier, path)
-            else:
-                record.properties = value
+        _apply_property_edits(store, identifier, operations)
         _save_store(worktree, config["deploy_prefix"], store)
         committed = commit_all(
             worktree, message or f"Update properties for {identifier}", allow_empty=allow_empty,
@@ -418,7 +425,10 @@ def deploy_version(
     push: bool = False,
     allow_empty: bool = False,
     site_dir: str | None = None,
+    title: str | None = None,
+    edits: list[tuple[str, str | None]] | None = None,
 ) -> int:
+    operations = _parse_property_edits(edits or [])
     repo = git_root()
     if site_dir is None:
         raise VersiteError(
@@ -441,13 +451,13 @@ def deploy_version(
             site_root = _site_root(worktree, config["deploy_prefix"])
             site_root.mkdir(parents=True, exist_ok=True)
             version_path = _identifier_path(worktree, config["deploy_prefix"], version)
-            _copy_contents(staged_site_dir, version_path)
             store = _load_store(worktree, config["deploy_prefix"])
-            title = version
             existing = store.find(version)
-            if existing is not None:
-                title = existing.title
+            if title is None:
+                title = existing.title if existing is not None else version
             record = store.upsert(version, title=title, aliases=aliases)
+            _apply_property_edits(store, version, operations)
+            _copy_contents(staged_site_dir, version_path)
             for alias in record.aliases:
                 _write_alias(
                     worktree,
