@@ -371,6 +371,7 @@ def set_default(
     message: str | None = None,
     push: bool = False,
     allow_empty: bool = False,
+    allow_undefined: bool = False,
 ) -> int:
     repo = git_root()
     with branch_worktree(
@@ -379,8 +380,12 @@ def set_default(
         remote=config["remote"],
         ignore_remote_status=config.get("ignore_remote_status", False),
     ) as worktree:
-        store = _load_store(worktree, config["deploy_prefix"])
-        store.get(identifier)
+        if not identifier or identifier == ".":
+            raise VersiteError("default identifier must not be empty or '.'")
+        _identifier_path(worktree, config["deploy_prefix"], identifier)
+        if not allow_undefined:
+            store = _load_store(worktree, config["deploy_prefix"])
+            store.get(identifier)
         write_redirect(
             _site_root(worktree, config["deploy_prefix"]) / "index.html",
             f"./{identifier}/",

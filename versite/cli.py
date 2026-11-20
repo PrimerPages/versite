@@ -79,6 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
     default = subparsers.add_parser("set-default")
     default.add_argument("identifier")
     _add_common_options(default)
+    default.add_argument(
+        "--allow-undefined", action="store_true",
+        help="Create the default redirect even if the version or alias does not exist yet.",
+    )
 
     serve = subparsers.add_parser("serve")
     _add_common_options(serve)
@@ -179,6 +183,7 @@ def main(argv: list[str] | None = None) -> int:
                 message=args.message,
                 push=push,
                 allow_empty=args.allow_empty,
+                allow_undefined=args.allow_undefined,
             )
         if args.command == "serve":
             return serve_site(config, host=args.host, port=args.port)
