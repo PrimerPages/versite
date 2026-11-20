@@ -90,12 +90,102 @@ version, versite moves that alias to the selected version.
 | Assign an alias to a version. | `versite alias 1.0 stable --push` |
 | Change a version's display title. | `versite retitle 1.0 "Version 1.0" --push` |
 | Read a version's properties. | `versite props 1.0 --json` |
-| Set a version property. | `versite props 1.0 hidden=true --push` |
-| Delete a version property. | `versite props 1.0 hidden- --push` |
+| Set a version property. | `versite props 1.0 --set hidden=true --push` |
+| Delete a version property. | `versite props 1.0 --delete hidden --push` |
 | Change the default version. | `versite set-default stable --push` |
 | Delete a version or alias. | `versite delete 1.0 --push` |
 
 For all available options, run `versite --help` or `versite COMMAND --help`.
+
+## Edit version properties
+
+Store custom metadata, such as support status or release channel, in a version's
+properties. Versite saves properties in `versions.json`; your theme or other
+tools determine how to use them.
+
+### Read properties
+
+Read all properties for a version:
+
+```bash
+versite props 1.0
+```
+
+To read one property, pass its path:
+
+```bash
+versite props 1.0 channel
+versite props 1.0 metadata.supported
+```
+
+### Set properties
+
+Use `--set` for JSON values and `--set-string` for literal text:
+
+```bash
+versite props 1.0 --set hidden=false --set-string channel=stable --push
+```
+
+JSON values can be objects, arrays, strings, numbers, booleans, or `null`.
+For example, store an object in a property named `metadata`:
+
+```bash
+versite props 1.0 --set 'metadata={"supported":true,"channel":"stable"}' --push
+```
+
+Use `--set-string label=true` to store the string `"true"`, or `--set label=true`
+to store the boolean `true`. `--set` preserves properties you don't specify.
+
+### Replace all properties
+
+Pass a JSON object to `--set-all`:
+
+```bash
+versite props 1.0 --set-all '{"hidden":false,"channel":"stable"}' --push
+```
+
+This replaces the entire properties object, removing any properties omitted
+from the supplied object.
+
+### Delete properties
+
+Delete a property with `--delete`, or clear all properties with `--delete-all`:
+
+```bash
+versite props 1.0 --delete hidden --push
+versite props 1.0 --delete-all --push
+```
+
+You can repeat and combine editing flags. Versite applies them in command-line
+order and creates one commit. Add `--push` to push that commit to your remote.
+
+### Load JSON from a file or CI
+
+In Bash, use quoted command substitution to read a settings file:
+
+```bash
+versite props 1.0 --set-all "$(cat properties.json)" --push
+```
+
+The file must contain a JSON object. To load its contents into one property
+instead, use `--set "metadata=$(cat properties.json)"`.
+
+If your CI workflow stores JSON in the `PROPERTIES_JSON` environment variable,
+pass the quoted variable:
+
+```bash
+versite props 1.0 --set-all "$PROPERTIES_JSON" --push
+```
+
+To generate JSON from other values, use a tool such as `jq`. This example stores
+the value of the `CHANNEL` environment variable as a string:
+
+```bash
+versite props 1.0 --set-all "$(jq -n --arg channel "$CHANNEL" \
+  '{channel: $channel, supported: true}')" --push
+```
+
+Versite validates JSON arguments before updating the version's properties.
 
 ## Use the GitHub action
 
@@ -215,8 +305,8 @@ Each deployment recreates all aliases attached to its version using this mode:
 Version selectors that read `versions.json` use the same order as `versite list`:
 
 - Development names such as `dev`, `devel`, and `nightly` appear above numbered versions.
-- Numbered versions use mike's loose version comparison, from newest to oldest.
-  Development names use the same comparator within their group.
+- Within each group, versions sort from newest to oldest using their version
+  identifiers.
 - Comparisons use the version identifier as written, including any `v` prefix.
   Use a consistent prefix to keep numbered versions in the order you expect.
 
@@ -245,27 +335,6 @@ contents:
 - For Actions publishing, package the complete updated deployment branch with
   `actions/upload-pages-artifact` and publish it with `actions/deploy-pages`.
   Include every version, the aliases, and `versions.json` in the artifact.
-
-### Migrate from mike
-
-Build your MkDocs site before running `versite deploy`. Move deployment settings
-into `versite.yml`.
-
-| mike command | versite equivalent |
-| --- | --- |
-| `mike deploy 1.0 latest` | Build the site, then run `versite deploy 1.0 latest --site-dir dist/site`. |
-| `mike list`, `delete`, `alias`, `retitle`, `props`, or `set-default` | Use the corresponding versite command. |
-
-The command names are familiar, but supported options and some behaviors differ:
-
-- Versite moves an existing alias when you assign it to another version, without
-  requiring `--update-aliases`.
-- Use `versite props 1.0 hidden=true` to set a property and
-  `versite props 1.0 hidden-` to delete it. The `props` command uses this syntax
-  instead of mike's property-editing flags.
-
-Run `versite COMMAND --help` to check the available options before adapting a
-script that uses mike.
 
 ## Contribute
 

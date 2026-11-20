@@ -17,6 +17,13 @@ from versite.commands import (
 from versite.config import apply_cli_overrides, load_config
 
 
+class PropertyEditAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        edits = list(getattr(namespace, self.dest, None) or [])
+        edits.append((option_string.removeprefix("--"), values if self.nargs != 0 else None))
+        setattr(namespace, self.dest, edits)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="versite")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -51,9 +58,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     props = subparsers.add_parser("props")
     props.add_argument("identifier")
-    props.add_argument("prop", nargs="?")
+    props.add_argument("prop", nargs="?", help="Property path to read.")
     _add_common_options(props)
     props.add_argument("--json", action="store_true")
+    for option, metavar, help_text in [
+        ("set", "PATH=JSON", "Set a property to a JSON value."),
+        ("set-string", "PATH=STRING", "Set a property to a literal string."),
+        ("set-all", "JSON", "Replace all properties with a JSON object."),
+        ("delete", "PATH", "Delete a property."),
+    ]:
+        props.add_argument(
+            f"--{option}", dest="property_edits", action=PropertyEditAction,
+            metavar=metavar, help=help_text,
+        )
+    props.add_argument(
+        "--delete-all", dest="property_edits", action=PropertyEditAction, nargs=0,
+        help="Clear all properties. Edits are applied in command-line order in one commit.",
+    )
 
     default = subparsers.add_parser("set-default")
     default.add_argument("identifier")
@@ -145,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
                 config,
                 args.identifier,
                 args.prop,
+                edits=args.property_edits,
                 message=args.message,
                 push=push,
                 allow_empty=args.allow_empty,
